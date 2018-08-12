@@ -1,0 +1,160 @@
+---
+title: "Practical Machine Learning"
+author: "Zoey Le"
+date: "August 10, 2018"
+output: 
+  html_document: 
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This is the final project for Coursera's MOOC Practical Machine Learning Course frome John Hopkins University.For more information, please visit:
+
+https://www.coursera.org/specialization/jhudatascience/
+
+R Packages using for this project include:
+
+```{r message=FALSE,warning=FALSE }
+
+library(caret)
+library(randomForest)
+library(knitr)
+
+```
+
+## Project Introduction
+
+###Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+###Data
+
+The training data for this project are available here: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+###Goal
+
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+## Loading and examinating data
+
+We first load the training and testing data locally.
+
+```{r load}
+
+training = read.csv("pml-training.csv", header = T, na.strings = c("NA","#DIV/0!",""))
+testing = read.csv("pml-testing.csv",header = T,na.strings = c("NA","#DIV/0!",""))
+
+```
+
+Then, we take a look at data dimension as well as variables including in the data.
+
+```{r overal}
+
+dim(training)
+dim(testing)
+
+str(training)
+
+```
+
+We will focus on working with the training data and set aside the testing data. Here, the training data has 19622 observations and 160 variables. However, some of the variables content almost only NA values, blank or "#DIV/0!" (which is transfer to "NA" using read.csv). In the next step, these variables will be removed together with the first 7 variables, since these are the participants' information and timestamps which have little contribution to our model. 
+
+##Cleaning data
+
+Those variables with more than 90% of NA and also the first 7 variables will be removed from the training data. 
+
+```{r clean}
+#select NA variables
+NAvar = colSums(is.na(training))>0.9*dim(training)[1]
+
+#remove first 7 and NA variables from the training data
+
+CleanTrain=training[,-c(1:7,which(NAvar==TRUE))]
+dim(CleanTrain)
+```
+
+Now, the cleaned training data is split into subtrain and subtest. We will perform building model to the subtrain with 5 folds cross validation for each methods. Then, apply the final model fits to the subtest and compare the accuracy between methods in order to choose the best model to predict the testing data.
+
+```{r split}
+
+set.seed(3232)
+
+inTrain=createDataPartition(CleanTrain$classe, p=0.7,list = F)
+subtrain=CleanTrain[inTrain,]
+subtest=CleanTrain[-inTrain,]
+
+dim(subtrain)
+dim(subtest)
+```
+
+##Model building
+
+There will be 2 model algorithms using for this projects:
+
+1. Random forest (rf)
+2. Boosting (gbm)
+
+
+###1.Random Forest (rf)
+
+```{r randomForest}
+
+RFmod = train(classe~., data = subtrain,method = "rf", trControl=trainControl(method = "cv",number = 5))
+print(RFmod)
+plot(RFmod,main="Accuracy vs number of predictors")
+
+RFpred = predict(RFmod,subtest)
+
+
+
+```
+
+###2.Boosting(gbm)
+
+```{r boosting}
+
+Boostmod = train(classe~., data = subtrain, method = "gbm", trControl=trainControl(method="cv",number = 5),verbose=F)
+print(Boostmod)
+
+Boostpred = predict(Boostmod,subtest)
+
+plot(Boostmod)
+
+```
+
+##Conclusion
+
+###Compare Model
+
+```{r compare}
+
+confusionMatrix(RFpred,subtest$classe)
+
+confusionMatrix(Boostpred,subtest$classe)
+
+```
+
+Since the accuracy of Random Forest (`r round(confusionMatrix(RFpred,subtest$classe)$overall[1],4)`) is better than the accuracy of Boosting (`r round(confusionMatrix(Boostpred,subtest$classe)$overall[1],4)`), we will use Random Forest algorithm as the method for the Testing data
+
+```{r test}
+
+predict(RFmod,testing)
+
+```
+
+
+
+
+
+
+
+
+
